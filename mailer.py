@@ -1,12 +1,19 @@
 import csv
 import smtplib
 import os
+from pathlib import Path
+from typing import Union
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 from category_rules import get_category
 
-def load_subscribers(filepath="subscribers.csv"):
+BASE_DIR = Path(__file__).resolve().parent
+
+def _is_truthy_env(name: str) -> bool:
+    return (os.getenv(name, "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+def load_subscribers(filepath: Union[str, Path] = BASE_DIR / "subscribers.csv"):
     subscribers = []
     with open(filepath) as f:
         for row in csv.DictReader(f):
@@ -105,25 +112,44 @@ def send_digest(new_items: list, updated_items: list):
         print("새로운 항목 없음. 메일 발송 생략.")
         return
 
-    subscribers = load_subscribers()
+    subscribers_file = os.getenv("SUBSCRIBERS_FILE")
+    subscribers = load_subscribers(subscribers_file) if subscribers_file else load_subscribers()
     if not subscribers:
         print("구독자 없음. 발송 생략.")
         return
 
-    EMAIL_FROM = os.environ["EMAIL_FROM"]
-    EMAIL_PASS = os.environ["EMAIL_PASS"]
+    test_to = (os.getenv("TEST_EMAIL_TO") or "").strip()
+    dry_run = _is_truthy_env("DRY_RUN")
+    if test_to:
+        subscribers = [{"email": test_to, "active": "true"}]
+
+    EMAIL_FROM = os.getenv("EMAIL_FROM")
+    EMAIL_PASS = os.getenv("EMAIL_PASS")
+    if not EMAIL_FROM or not EMAIL_PASS:
+        raise RuntimeError("EMAIL_FROM/EMAIL_PASS 환경변수가 설정되어야 합니다.")
     subject = f"[AWS 새소식] {datetime.now().strftime('%Y-%m-%d')} 다이제스트"
     html_body = build_html(new_items, updated_items)
 
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+    if dry_run:
+        print(f"[DRY_RUN] subject={subject}")
+        print(f"[DRY_RUN] recipients={len(subscribers)}")
+        for sub in subscribers:
+            print(f"[DRY_RUN] to={sub.get('email')}")
+        print(f"[DRY_RUN] new_items={len(new_items)} updated_items={len(updated_items)}")
+        return
+
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
         server.starttls()
         server.login(EMAIL_FROM, EMAIL_PASS)
 
         for sub in subscribers:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = EMAIL_FROM
-            msg["To"] = sub["email"]
-            msg.attach(MIMEText(html_body, "html"))
-            server.sendmail(EMAIL_FROM, sub["email"], msg.as_string())
-            print(f"발송 완료: {sub['email']}")
+            try:
+                msg = MIMEMultipart("alternative")
+                msg["Subject"] = subject
+                msg["From"] = EMAIL_FROM
+                msg["To"] = sub["email"]
+                msg.attach(MIMEText(html_body, "html"))
+                server.sendmail(EMAIL_FROM, sub["email"], msg.as_string())
+                print(f"발송 완료: {sub['email']}")
+            except Exception as e:
+                print(f"발송 실패: {sub.get('email', '(unknown)')} ({e})")

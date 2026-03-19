@@ -9,19 +9,21 @@ jobs:
   send-digest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Restore history
-        uses: actions/cache@v3
+        uses: actions/cache/restore@v4
         with:
           path: data/history.json
-          key: aws-digest-history
+          key: aws-digest-history-${{ github.run_id }}
+          restore-keys: |
+            aws-digest-history-
 
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - run: pip install feedparser python-dotenv
+      - run: pip install feedparser python-dotenv requests certifi
 
       - run: python digest.py
         env:
@@ -29,7 +31,7 @@ jobs:
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
 
       - name: Save history
-        uses: actions/cache@v3
+        uses: actions/cache/save@v4
         with:
           path: data/history.json
-          key: aws-digest-history
+          key: aws-digest-history-${{ github.run_id }}
