@@ -15,9 +15,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: data/history.json
-          key: aws-digest-history-${{ github.run_id }}
-          restore-keys: |
-            aws-digest-history-
+          key: aws-digest-history
 
       - uses: actions/setup-python@v4
         with:
@@ -34,4 +32,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: data/history.json
-          key: aws-digest-history-${{ github.run_id }}
+          key: aws-digest-history
