@@ -12,7 +12,7 @@ def strip_html(text: str) -> str:
     return clean.strip()
     
 
-FEED_URL = "https://aws.amazon.com/ko/about-aws/whats-new/recent/feed/"
+FEED_URL = "https://aws.amazon.com/about-aws/whats-new/recent/feed/"
 
 def _debug_log(message: str, data: dict, *, run_id: str, hypothesis_id: str, location: str):
     payload = {
